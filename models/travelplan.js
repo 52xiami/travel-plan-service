@@ -19,8 +19,8 @@ const travelplanSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    startDate: Date,
-    endDate: Date,
+    startDate: String,
+    endDate: String,
 
     travelMembers: {
       type: [Number],
