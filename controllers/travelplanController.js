@@ -5,6 +5,8 @@ const Travelplan = require("../models/travelplan");
 const OngoingTravelplan = require("../models/ongoingTravelplan");
 const path = require("path");
 const fs = require("fs");
+const { Storage } = require("@google-cloud/storage");
+const { GcsFileUpload } = require("gcs-file-upload");
 
 //@desc Get Single travelplan
 //@route GET /api/v1/travelplan/read/:planId
@@ -111,8 +113,6 @@ exports.updateTravelplan = asyncHandler(async (req, res, next) => {
     runValidators: true,
   });
 
-  //travelplan.save();
-
   res.status(200).json({
     success: true,
     message: "Travelplan is updtated",
@@ -158,17 +158,6 @@ exports.likeTravelplan = asyncHandler(async (req, res, next) => {
       )
     );
   }
-  // const travelgroupId = travelplan.travelGroup;
-  // const travegroup = await Travelgroup.findById(travelgroupId);
-  // // Only group memebrs can like a travelplan or dislike a travelplan
-  // if (!travegroup || !travegroup.groupMembers.includes(req.params.userId)) {
-  //     return next(
-  //         new ErrorResponse(
-  //             `User with userId ${req.params.userId} is not authoried`,
-  //             401
-  //         )
-  //     )
-  // }
   if (travelplan.dislikes.includes(Number.parseInt(req.params.userId))) {
     const idxToRemove = travelplan.dislikes.indexOf(
       Number.parseInt(req.params.userId)
@@ -184,8 +173,6 @@ exports.likeTravelplan = asyncHandler(async (req, res, next) => {
       success: true,
       data: travelplan,
     });
-    // req.body.likes = travelplan.likes;
-    // travelplan = await Travelplan.findByIdAndUpdate()
   } else {
     res.status(400).json({
       success: false,
@@ -207,16 +194,6 @@ exports.disLikeTravelplan = asyncHandler(async (req, res, next) => {
       )
     );
   }
-  // const travelgroupId = travelplan.travelGroup;
-  // const travegroup = await Travelgroup.findById(travelgroupId);
-  // if (!travegroup.groupMembers.includes(req.params.userId)) {
-  //     return next(
-  //         new ErrorResponse(
-  //             `User with userId ${req.params.userId} is not authoried`,
-  //             401
-  //         )
-  //     )
-  // }
   if (travelplan.likes.includes(Number.parseInt(req.params.userId))) {
     const idxToRemove = travelplan.likes.indexOf(req.params.userId);
     travelplan.likes.splice(idxToRemove, 1);
@@ -230,8 +207,6 @@ exports.disLikeTravelplan = asyncHandler(async (req, res, next) => {
       success: true,
       data: travelplan,
     });
-    // req.body.likes = travelplan.likes;
-    // travelplan = await Travelplan.findByIdAndUpdate()
   } else {
     res.status(400).json({
       message: "You already disliked this travelplan",
@@ -302,6 +277,25 @@ exports.unDislikeTravelplan = asyncHandler(async (req, res, next) => {
 //@access Private
 
 exports.uploadImageToTravelplan = asyncHandler(async (req, res, next) => {
+  const myBucket = new GcsFileUpload(
+    {
+      keyFilename: path.join(
+        __dirname,
+        "../traveplan-travelgroup-service-key.json"
+      ),
+      projectId: "traveplan-travelgroup-service",
+    },
+    "travel-group-service-bucket"
+  );
+  const storage = new Storage({
+    keyFilename: path.join(
+      __dirname,
+      "../traveplan-travelgroup-service-key.json"
+    ),
+    projectId: "traveplan-travelgroup-service",
+  });
+  const bucketName = "travel-group-service-bucket";
+
   const travelplan = await Travelplan.find({
     _id: req.params.planId,
     initiator: req.params.userId,
@@ -325,15 +319,6 @@ exports.uploadImageToTravelplan = asyncHandler(async (req, res, next) => {
   if (!file.mimetype.startsWith("image")) {
     return next(new ErrorResponse("Plese upload an image file", 400));
   }
-  //check file size
-  // if (file.size > process.env.MAX_FILE_UPLOAD) {
-  //   return next(
-  //     new ErrorResponse(
-  //       `Please upload an image less than ${process.env.MAX_FILE_UPLOAD}`,
-  //       400
-  //     )
-  //   );
-  // }
 
   file.name =
     "plan" +
@@ -341,30 +326,48 @@ exports.uploadImageToTravelplan = asyncHandler(async (req, res, next) => {
     Date.now().toString() +
     `${path.parse(file.name).ext}`;
 
-  file.mv(`${process.env.FILE_UPLOAD_PATH}/${file.name}`, async (err) => {
-    if (err) {
-      console.error(err);
-      return next(new ErrorResponse(`Problem with file upload`, 500));
-    }
+  const fileMetaData = {
+    originalname: file.name,
+    buffer: file.data,
+    //Content-Type: file.mimetype
+  };
 
-    await Travelplan.findByIdAndUpdate(req.params.planId, { image: file.name });
-
-    //Delete the old image
-    if (imageToBeDelete && imageToBeDelete !== "no-image.jpg") {
-      fs.unlink(
-        `${process.env.FILE_UPLOAD_PATH}/${imageToBeDelete}`,
-        (error) => {
-          if (error) {
-            console.log(error);
-          }
-        }
-      );
-    }
-
-    res.status(200).json({
-      success: true,
-      data: file.name,
+  myBucket
+    .uploadFile(fileMetaData)
+    .then(async (data) => {
+      console.log("upload file data");
+      console.log(data);
+      const words = data.split("/");
+      const fileName = words[words.length - 1];
+      await Travelplan.findByIdAndUpdate(req.params.planId, {
+        image: fileName,
+      });
+      await storage
+        .bucket(bucketName)
+        .file(fileName)
+        .setMetadata({ contentType: file.mimetype });
+      if (imageToBeDelete && imageToBeDelete !== "no-image.jpg") {
+        await storage.bucket(bucketName).file(imageToBeDelete).delete();
+        console.log(`deleted file is  ${imageToBeDelete}`);
+      }
+    })
+    .catch((err) => {
+      console.log(err);
     });
+
+  // await Travelplan.findByIdAndUpdate(req.params.planId, { image: file.name });
+
+  //Delete the old image
+  // if (imageToBeDelete && imageToBeDelete !== "no-image.jpg") {
+  //   fs.unlink(`${process.env.FILE_UPLOAD_PATH}/${imageToBeDelete}`, (error) => {
+  //     if (error) {
+  //       console.log(error);
+  //     }
+  //   });
+  // }
+
+  res.status(200).json({
+    success: true,
   });
 });
 
@@ -536,7 +539,7 @@ exports.updateOngoingTravelplan = asyncHandler(async (req, res, next) => {
   });
 });
 
-//@desc GET an ongoing travelplan
+//@desc GET other users' positions inside an ongoing travelplan
 //@route GET /api/v1/travelplan/ongoing/:userId/:planId
 //@access Private
 

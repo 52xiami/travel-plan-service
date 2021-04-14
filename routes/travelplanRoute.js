@@ -16,6 +16,7 @@ const {
   createOngoingTravelplan,
   updateOngoingTravelplan,
   deleteOngoingTravelplan,
+  getAllOngongingTravelplansById,
 } = require("../controllers/travelplanController");
 
 const router = express.Router();
@@ -53,6 +54,7 @@ router.route("/updateimage/:userId/:planId").put(uploadImageToTravelplan);
 //router.route("/position/read/:planId").get(getUserPositionsOfTravelPlan);
 
 //router.route("/position/delete/:userId/:planId").delete(deletePositionSharing);
+router.route("/ongoing/:planId").get(getAllOngongingTravelplansById);
 
 router.route("/ongoing/:userId/:planId").post(createOngoingTravelplan);
 

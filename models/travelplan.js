@@ -1,6 +1,4 @@
 const mongoose = require("mongoose");
-const geocoder = require("../utils/geocoder");
-
 const travelplanSchema = new mongoose.Schema(
   {
     planName: {
@@ -37,11 +35,6 @@ const travelplanSchema = new mongoose.Schema(
     dislikes: {
       type: [Number],
     },
-    //0 denotes created
-    //1 denotes published to a group
-    //2 ongoing
-
-    //3 ended
     status: {
       type: Number,
       default: 0,
