@@ -41,6 +41,36 @@ exports.getAllTravelplans = asyncHandler(async (req, res, next) => {
   });
 });
 
+//@desc Get all travelplans that a user finished
+//@route GET /api/v1/travelplan/read_finished/:userId
+//@access Private
+exports.getAllTravelplansUserFinished = asyncHandler(async (req, res, next) => {
+  const travelplans = await Travelplan.find({
+    status: 3,
+  });
+
+  if (!travelplans || travelplans.length == 0) {
+    return next(new ErrorResponse("No Travelplans found", 404));
+  }
+
+  const userFinishedTravelplans = travelplans.filter((item) => {
+    return (
+      item.travelMembers.includes(Number.parseInt(req.params.userId)) ||
+      item.initiator === Number.parseInt(req.params.userId)
+    );
+  });
+
+  if (!userFinishedTravelplans || userFinishedTravelplans.length == 0) {
+    return next(new ErrorResponse("No Travelplans found", 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    count: userFinishedTravelplans.length,
+    data: userFinishedTravelplans,
+  });
+});
+
 //@desc Get all travelplans belonging to a travelgroup with id
 //@route GET /api/v1/travelplan/read/plans_in/:groupId
 //@access Private
@@ -98,12 +128,11 @@ exports.addTravelplan = asyncHandler(async (req, res, next) => {
 exports.updateTravelplan = asyncHandler(async (req, res, next) => {
   let travelplan = await Travelplan.find({
     _id: req.params.planId,
-    initiator: req.params.userId,
   });
   if (!travelplan || travelplan.length == 0) {
     return next(
       new ErrorResponse(
-        `No travelplan found with planId ${req.params.id} and userId ${req.params.userId}`
+        `No travelplan found with planId ${req.params.planId} and userId ${req.params.userId}`
       )
     );
   }
@@ -540,26 +569,28 @@ exports.updateOngoingTravelplan = asyncHandler(async (req, res, next) => {
 });
 
 //@desc GET other users' positions inside an ongoing travelplan
-//@route GET /api/v1/travelplan/ongoing/:userId/:planId
+//@route GET /api/v1/travelplan/ongoing/:planId
 //@access Private
 
 exports.getAllOngongingTravelplansById = asyncHandler(
   async (req, res, next) => {
-    const ongoingTravelplans = OngoingTravelplan.find({
+    console.log(req.params.planId);
+    const ongoingTravelplans = await OngoingTravelplan.find({
       planId: req.params.planId,
     });
     if (!ongoingTravelplans || ongoingTravelplans.length === 0) {
       return next(new ErrorResponse("No Ongoing Travelplans found", 404));
     }
-    const ongoingTravelPlansWihoutCurrUser = ongoingTravelplans.filter(
-      (item) => {
-        item.userId !== Number.parseInt(req.params.userId);
-      }
-    );
+    console.log(ongoingTravelplans);
+    // const ongoingTravelPlansWihoutCurrUser = ongoingTravelplans.filter(
+    //   (item) => {
+    //     item.userId !== Number.parseInt(req.params.userId);
+    //   }
+    // );
 
     res.status(200).json({
       success: true,
-      data: ongoingTravelPlansWihoutCurrUser,
+      data: ongoingTravelplans,
     });
   }
 );

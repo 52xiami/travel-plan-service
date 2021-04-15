@@ -17,6 +17,7 @@ const {
   updateOngoingTravelplan,
   deleteOngoingTravelplan,
   getAllOngongingTravelplansById,
+  getAllTravelplansUserFinished,
 } = require("../controllers/travelplanController");
 
 const router = express.Router();
@@ -27,6 +28,8 @@ router.route("/read").get(getAllTravelplans);
 router.route("/read/plans_in/:groupId").get(getAllTravelplansOfTravelgroup);
 
 router.route("/read/plans_createdby/:userId").get(getAllTraveplansOfUser);
+
+router.route("/read_finished/:userId").get(getAllTravelplansUserFinished);
 
 router.route("/create/:userId").post(addTravelplan);
 
