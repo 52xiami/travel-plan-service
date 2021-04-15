@@ -11,7 +11,6 @@ const travelplanSchema = new mongoose.Schema(
       type: String,
       default: "no-image.jpg",
     },
-    estimatedStartDate: String,
 
     planDescription: {
       type: String,
