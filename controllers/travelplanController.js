@@ -71,6 +71,49 @@ exports.getAllTravelplansUserFinished = asyncHandler(async (req, res, next) => {
   });
 });
 
+//@desc Get all unfinished travelplans that a user in travelmembers
+//@route GET /api/v1/travelplan/read_unfinished/:userId
+//@access Private
+exports.getAllTravelplansUserUnfinished = asyncHandler(
+  async (req, res, next) => {
+    let travelplans = [];
+
+    const travelplansPublished = await Travelplan.find({
+      status: 1,
+    });
+
+    // if (!travelplansPublished || travelplansPublished.length === 0) {
+    //   return next(new ErrorResponse("No Travelplans found", 404));
+    // }
+    if (travelplansPublished && travelplansPublished.length !== 0) {
+      travelplans.concat(travelplansPublished);
+    }
+    const travelplansOngoing = await Travelplan.find({
+      status: 2,
+    });
+
+    if (travelplansOngoing && travelplansOngoing.length !== 0) {
+      travelplans.concat(travelplansOngoing);
+    }
+    const userUnfinishedPlans = travelplans.filter((item) => {
+      return (
+        item.travelMembers.includes(Number.parseInt(req.params.userId)) ||
+        item.initiator === Number.parseInt(req.params.userId)
+      );
+    });
+
+    if (!userUnfinishedPlans || userUnfinishedPlans.length == 0) {
+      return next(new ErrorResponse("No Travelplans found", 404));
+    }
+
+    res.status(200).json({
+      success: true,
+      count: userUnfinishedPlans.length,
+      data: userUnfinishedPlans,
+    });
+  }
+);
+
 //@desc Get all travelplans belonging to a travelgroup with id
 //@route GET /api/v1/travelplan/read/plans_in/:groupId
 //@access Private
@@ -106,6 +149,46 @@ exports.getAllTraveplansOfUser = asyncHandler(async (req, res, next) => {
     success: true,
     count: travelplans.length,
     data: travelplans,
+  });
+});
+
+//@desc Get an ongoing travelplan by userId
+//@route GET /api/v1/travelplan/read_ongoing/:userId
+//@access Private
+
+exports.getOngoingTravelplanForUser = asyncHandler(async (req, res, next) => {
+  const travelplans = await Travelplan.find({
+    status: 2,
+  });
+
+  if (!travelplans || travelplans.length == 0) {
+    return next(new ErrorResponse("No Ongoing travelplans found", 404));
+  }
+
+  travelplans.sort((a, b) => {
+    const aDate = new Date(a.startDate);
+    const bDate = new Date(b.startDate);
+    return aDate - bDate;
+  });
+
+  console.log(travelplans);
+
+  const ongoingTravelplanOfUser = travelplans.filter((item) => {
+    return (
+      item.travelMembers.includes(Number.parseInt(req.params.userId)) ||
+      item.initiator === Number.parseInt(req.params.userId)
+    );
+  });
+  //console.log(ongoingTravelplanOfUser);
+
+  if (!ongoingTravelplanOfUser || ongoingTravelplanOfUser.length === 0) {
+    return next(new ErrorResponse("No Ongoing travelplans found", 404));
+  }
+
+  //ongoingTravelplanOfUser;
+  res.status(200).json({
+    success: true,
+    data: ongoingTravelplanOfUser[0],
   });
 });
 
@@ -163,6 +246,15 @@ exports.deleteTravelplan = asyncHandler(async (req, res, next) => {
       new ErrorResponse(
         `No travelplan found with planId ${req.params.id} and userId ${req.params.userId}`,
         404
+      )
+    );
+  }
+
+  if (travelplan[0].status === 2 || travelplan[0].status === 3) {
+    return next(
+      new ErrorResponse(
+        `Cant't delete the travelplan with planId ${req.params.planId} that is ongoing or ended`,
+        400
       )
     );
   }
@@ -308,22 +400,16 @@ exports.unDislikeTravelplan = asyncHandler(async (req, res, next) => {
 exports.uploadImageToTravelplan = asyncHandler(async (req, res, next) => {
   const myBucket = new GcsFileUpload(
     {
-      keyFilename: path.join(
-        __dirname,
-        "../traveplan-travelgroup-service-key.json"
-      ),
-      projectId: "traveplan-travelgroup-service",
+      keyFilename: path.join(__dirname, "../travel-group-service-key.json"),
+      projectId: "travel-group-service",
     },
-    "travel-group-service-bucket"
+    "travel-group-plan-image-bucket"
   );
   const storage = new Storage({
-    keyFilename: path.join(
-      __dirname,
-      "../traveplan-travelgroup-service-key.json"
-    ),
-    projectId: "traveplan-travelgroup-service",
+    keyFilename: path.join(__dirname, "../travel-group-service-key.json"),
+    projectId: "travel-group-service",
   });
-  const bucketName = "travel-group-service-bucket";
+  const bucketName = "travel-group-plan-image-bucket";
 
   const travelplan = await Travelplan.find({
     _id: req.params.planId,
@@ -600,19 +686,18 @@ exports.getAllOngongingTravelplansById = asyncHandler(
 //@access Private
 
 exports.deleteOngoingTravelplan = asyncHandler(async (req, res, next) => {
-  const ongoingTravelplan = await OngoingTravelplan.findOne({
+  const ongoingTravelplans = await OngoingTravelplan.find({
     planId: req.params.planId,
     userId: req.params.userId,
   });
 
-  if (!ongoingTravelplan) {
-    return next(new ErrorResponse("No ongoing travelplan found", 404));
+  if (ongoingTravelplans && ongoingTravelplans.length !== 0) {
+    ongoingTravelplans.forEach(async (plan) => {
+      await OngoingTravelplan.findByIdAndDelete(plan._id);
+    });
   }
-
-  const id = ongoingTravelplan._id;
-
-  await OngoingTravelplan.findByIdAndDelete(id);
   res.status(200).json({
     success: true,
+    message: "Ongoing Travel Plan is deleted",
   });
 });

@@ -38,24 +38,6 @@ const travelplanSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    comments: [
-      {
-        user: {
-          type: Number,
-        },
-        text: {
-          type: String,
-          required: [true, "Please add your comment"],
-        },
-        title: {
-          type: String,
-        },
-        date: {
-          type: Date,
-          default: Date.now(),
-        },
-      },
-    ],
     destinationAddress: [
       {
         placeId: String,
